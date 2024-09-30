@@ -1,0 +1,249 @@
+---
+title: "Module#4"
+author: "DSC 384-01a"
+date: "2024-09-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+z1 <- c(66,0,0)
+z2 <- c(0,607,436)
+(mean(z2) - mean(z1))
+```
+```{r}
+(66+607)/3
+
+```
+
+
+```{r}
+436/3
+(224-145)
+```
+```{r}
+2**24
+```
+```{r}
+(factorial(24))/(factorial(12) * factorial(12))
+```
+```{r}
+((factorial(12))/(factorial(6) * factorial(6)))*((factorial(12))/(factorial(6) * factorial(6)))
+```
+```{r}
+2**12
+```
+```{r}
+7/18
+```
+```{r}
+T0 <- c(1.0,-3.67,-1.0, -1.67,-0.33,2.33,1.67,-0.33,-1.0,1.67,-1.67,1.00,0.33,-1.67,0.33,1.67,1.00,3.67)
+(sort(T0))
+
+```
+
+```{r}
+(quiz_data <-read.table(file = 'quiz_omni.txt', header = TRUE, sep = "\t", fileEncoding = "UTF-16"))
+(quiz_obsr <-read.table(file = 'quiz_obs.txt', header = TRUE, sep = "\t", fileEncoding = "UTF-16"))
+```
+```{r}
+(quiz_data$Y0[1])
+```
+
+
+```{r}
+dm_res <- numeric(10000)  # For difference in means estimates
+ols_res <- numeric(10000) # For linear regression estimates
+
+```
+```{r}
+for (r in 1:10000) {
+  Z_simulated <- sample(c(1,0), size = 1000, replace = TRUE) # Generate new treatment assignments
+  Yobs_simulated <- Z_simulated * quiz_data$Y1 + (1 - Z_simulated) * quiz_data$Y0 # Generate new outcome vector
+
+  # iii. Apply the estimates to the simulated dataset and save the results
+  dm_res[r] <- mean(Yobs_simulated[Z_simulated == 1]) - mean(Yobs_simulated[Z_simulated == 0]) # Difference in means estimate
+  ols_model <- lm(Yobs_simulated ~ Z_simulated + quiz_data$X) # Linear regression model
+  ols_res[r] <- coef(ols_model)["Z_simulated"] # Coefficient of Z_simulated in the regression
+}
+```
+```{r}
+sate_dm <- mean(dm_res) # Monte Carlo estimate of SATE for difference in means
+sate_ols <- mean(ols_res) # Monte Carlo estimate of SATE for linear regression
+(sate_dm)
+(sate_ols)
+```
+```{r}
+
+```
+```{r}
+(dm_obs <- mean(quiz_data$Y1 - mean(quiz_data$Y0)))
+```
+```{r}
+(dm_omni <- mean(quiz_obsr[quiz_obsr$Z == 1 ,]$Yobs - mean(quiz_obsr[quiz_obsr$Z == 0 ,]$Yobs)))
+```
+
+```{r}
+library(ggplot2)
+# Create data frames for the distributions
+dm_df <- data.frame(estimate = dm_res)
+ols_df <- data.frame(estimate = ols_res)
+
+# Create density plots
+dm_plot <- ggplot(dm_df, aes(x = estimate)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  geom_vline(xintercept = sate_dm, color = "red") +
+  labs(title = "Randomization Distribution - Difference in Means")
+
+ols_plot <- ggplot(ols_df, aes(x = estimate)) +
+  geom_density(fill = "green", alpha = 0.5) +
+  geom_vline(xintercept = sate_ols, color = "red") +
+  labs(title = "Randomization Distribution - Linear Regression")
+
+# Display or save the plots
+print(dm_plot)
+print(ols_plot)
+```
+```{r}
+# Set seed for reproducibility (and to get the right answer!):
+
+RNGkind(sample.kind = 'Rounding')
+set.seed(2021)
+N <- 1000 # number of individuals
+tau <- 7 # homogenous treatment effect
+# Generate errors and pre-treatment covariates:
+e0 <- rnorm(n = N, mean = 0, sd = 1)
+e1 <- rnorm(n = N, mean = 0, sd = 1)
+X <- rnorm(n = N, mean = 65, sd = 9)
+# Compute potential outcomes based on linear relationship:
+Y0 <- 10 +   0 + e0
+Y1 <- 10  + tau + e1
+# Create omniscient dataframe:
+omni_data1 <- data.frame(X, Y0, Y1)
+set.seed(2021)
+Z <- sample(c(1,0), size = N, replace = TRUE) # Generate random treatment assignments
+Yobs <- Z * Y1 + (1 - Z) * Y0 # Observed potential outcomes Y(Z)
+# Create observed dataframe:
+obs_data1 <- data.frame(X, Z, Yobs)
+```
+```{r}
+(omni_data1)
+(obs_data1)
+```
+```{r}
+dm_res1 <- numeric(10000)  # For difference in means estimates
+ols_res1 <- numeric(10000) # For linear regression estimates
+
+```
+
+```{r}
+for (r in 1:10000) {
+  Z_simulated1 <- sample(c(1,0), size = 1000, replace = TRUE) # Generate new treatment assignments
+  Yobs_simulated1 <- Z_simulated1 * omni_data1$Y1 + (1 - Z_simulated1) * omni_data1$Y0 # Generate new outcome vector
+
+  # iii. Apply the estimates to the simulated dataset and save the results
+  dm_res1[r] <- mean(Yobs_simulated1[Z_simulated1 == 1]) - mean(Yobs_simulated1[Z_simulated1 == 0]) # Difference in means estimate
+  ols_model11 <- lm(Yobs_simulated1 ~ Z_simulated1 + omni_data1$X) # Linear regression model
+  ols_res1[r] <- coef(ols_model11)["Z_simulated"] # Coefficient of Z_simulated in the regression
+}
+```
+
+```{r}
+sate_dm1 <- mean(dm_res1) # Monte Carlo estimate of SATE for difference in means
+sate_ols1 <- mean(ols_res1) # Monte Carlo estimate of SATE for linear regression
+(sate_dm1)
+(sate_ols1)
+```
+```{r}
+1+3
+```
+```{r}
+(bal_data <-read.table(file = 'balance_data.txt', header = TRUE, sep = "\t"))
+(match_data <-read.table(file = 'matched_data.txt', header = TRUE, sep = "\t"))
+```
+```{r}
+# mean((ind_data[ind_data$ind_sex == 1 ,]$ind_final_wt) - (ind_data[ind_data$ind_sex == 1 ,]$ind_init_wt))
+meanT = mean(bal_data[bal_data$Treat==1,]$Xcont.1)
+meanC = mean(bal_data[bal_data$Treat==0,]$Xcont.1)
+sdT = sd(bal_data[bal_data$Treat==1,]$Xcont.1)
+varT = var(bal_data[bal_data$Treat==1,]$Xcont.1)
+(sdT)
+(sqrt(varT))
+```
+```{r}
+(meanT -meanC)/sdT
+```
+```{r}
+(bal_data[bal_data$Treat==1,]$Xcont.1)
+```
+
+```{r}
+meanT2 = mean(bal_data[bal_data$Treat==1,]$Xcat.1)
+meanC2 = mean(bal_data[bal_data$Treat==0,]$Xcat.1)
+sdT2 = sd(bal_data[bal_data$Treat==1,]$Xcat.1)
+```
+```{r}
+(meanT2 -meanC2)/sdT2
+```
+```{r}
+meanT3 = mean(bal_data[bal_data$Treat==1,]$Xcont.2)
+meanC3 = mean(bal_data[bal_data$Treat==0,]$Xcont.2)
+sdT3 = sd(bal_data[bal_data$Treat==1,]$Xcont.2)
+```
+```{r}
+(meanT3 -meanC3)/sdT3
+```
+```{r}
+meanT4 = mean(bal_data[bal_data$Treat==1,]$Xcat.2)
+meanC4 = mean(bal_data[bal_data$Treat==0,]$Xcat.2)
+sdT4 = sd(bal_data[bal_data$Treat==1,]$Xcat.2)
+```
+```{r}
+(meanT4 -meanC4)/sdT4
+```
+```{r}
+meanT11 = mean(match_data[match_data$Treat==1,]$Xcont.1)
+meanC11 = mean(match_data[match_data$Treat==0,]$Xcont.1)
+sdT11 = sd(match_data[match_data$Treat==1,]$Xcont.2)
+
+meanT12 = mean(match_data[match_data$Treat==1,]$Xcont.2)
+meanC12 = mean(match_data[match_data$Treat==0,]$Xcont.2)
+sdT12 = sd(match_data[match_data$Treat==1,]$Xcont.2)
+
+meanT13 = mean(match_data[match_data$Treat==1,]$Xcat.1)
+meanC13 = mean(match_data[match_data$Treat==0,]$Xcat.1)
+sdT13 = sd(match_data[match_data$Treat==1,]$Xcat.1)
+
+meanT14 = mean(match_data[match_data$Treat==1,]$Xcat.2)
+meanC14 = mean(match_data[match_data$Treat==0,]$Xcat.2)
+sdT14 = sd(match_data[match_data$Treat==1,]$Xcat.2)
+```
+```{r}
+(meanT11 -meanC11)/sdT11
+(meanT12 -meanC12)/sdT12
+(meanT13 -meanC13)/sdT13
+(meanT14 -meanC14)/sdT14
+```
+
