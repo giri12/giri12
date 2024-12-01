@@ -1,0 +1,330 @@
+---
+title: "Practice02"
+author: "DSC 384-01a"
+date: "2024-11-28"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(alr4)
+summary(Heights)
+```
+```{r}
+library("rstan")
+library("arm")
+library("rstanarm")
+library("survey")
+```
+
+
+```{r}
+head(Heights)
+```
+
+
+
+```{r}
+plot(dheight ~ mheight , data= Heights)
+```
+```{r}
+dim(Heights)
+```
+
+```{r}
+curve(log(x/(1-x)), from =0.0, to=1.0)
+```
+```{r}
+cc2 <- read.csv("cc2.csv")
+head(cc2)
+```
+```{r}
+#a1 <- mean(cc2[cc2$treat == 0,]$bw)
+#a2 <- mean(cc2[cc2$treat == 1,]$bw)
+#sd1 <- sd(cc2$bw)
+#sd2 <- sd(cc2[cc2$treat == 1,]$bw)
+#((a1-a2)/sd2)
+
+
+a1 <- mean(cc2[cc2$treat == 0,]$dayskidh)
+a2 <- mean(cc2[cc2$treat == 1,]$dayskidh)
+sd1 <- sd(cc2$dayskidh)
+sd2 <- sd(cc2[cc2$treat == 1,]$dayskidh)
+((a1-a2)/sd2)
+#my_data[gender == "male" & age <= 20]
+#colnames(cc2)
+
+```
+```{r}
+colnames(cc2)
+```
+```{r}
+bs1 <- read.csv("bart_sim.csv")
+head(bs1)
+```
+```{r}
+a1 <- mean(bs1[bs1$Z == 0,]$X1)
+a2 <- mean(bs1[bs1$Z == 1,]$X1)
+sd1 <- sd(bs1$X1)
+sd2 <- sd(bs1[bs1$Z == 1,]$X1)
+(abs(a2-a1)/sd2)
+```
+```{r}
+ps_fit_1 <- stan_glm(Z ~ X1 + X2 + X1:X2, family=binomial(link="logit"), data=bs1, algorithm="optimizing", refresh = FALSE)
+```
+
+```{r}
+pscores <- apply(posterior_linpred(ps_fit_1), 2, mean)
+```
+
+
+```{r}
+bs2 <- bs1
+bs2$pscores <- pscores
+head(bs2)
+```
+```{r}
+xlow <- min(bs2[bs2$Z==0,]$pscores)
+xhigh <- max(bs2[bs2$Z==0,]$pscores)
+
+(min(bs2[bs2$Z==1,]$pscores))
+(max(bs2[bs2$Z==1,]$pscores))
+```
+```{r}
+bs3 <- bs2[bs2$pscores >= xlow & bs2$pscores <= xhigh,]
+
+a1 <- mean(bs3[bs3$Z == 0,]$X2)
+a2 <- mean(bs3[bs3$Z == 1,]$X2)
+sd1 <- sd(bs3$X2)
+sd2 <- sd(bs3[bs3$Z == 1,]$X2)
+(abs(a2-a1)/sd2)
+```
+```{r}
+(min(bs3$pscores))
+(max(bs3$pscores))
+```
+```{r}
+(min(bs3$pscores))
+(max(bs3$pscores))
+```
+```{r}
+(bs3)
+```
+
+```{r}
+#(bs3[,(names(bs3) %in% c("X1", "X2"))])
+bs3[,"Y"]
+```
+
+
+```{r}
+bxp=as.matrix(bs3[bs3$Z==1,(names(bs3) %in% c("X1", "X2", "Z"))]) 
+bxp[,"Z"]=0
+
+```
+
+
+```{r}
+nrow(bs3[bs3$Z==1,])
+```
+
+
+
+```{r}
+# set up all the covariates
+#' Create training data that uses all the covariates (not the outcome)
+bxt=as.matrix(bs3[,(names(bs3) %in% c("X1", "X2", "Z"))])  
+
+#get all the corresponding outcomes in a matrix for training
+bxty=as.numeric(bs3[,"Y"])
+
+# now get the same same data for the treated samples and predict its counterfactual
+bxp=as.matrix(bs3[bs3$Z==1,(names(bs3) %in% c("X1", "X2", "Z"))]) 
+bxp[,"Z"]=0
+
+#Now use BART to predict
+#' Fit the BART model
+bart.mod <- bart(x.train=bxt,   y.train=bxty,  x.test=bxp)
+
+
+```
+
+```{r}
+(head(bxt))
+(head(bxp))
+```
+
+
+```{r}
+#' Use MCMC samples to calculate individual and average treatment effects
+
+#' First calculate MCMC simulations of individual treatment effects by subtracting
+#' the observed outcome among treated units from the predicted values had they been
+#' untreated (i.e., the "test predictions")
+diffs1=bart.mod$yhat.train[,bs3$Z==1]-bart.mod$yhat.test 
+head(diffs1) # a matrix with 1000 MCMC samples (rows) for each of 282 treated units (columns)
+dim(diffs1)
+
+
+
+```
+
+```{r}
+
+#' Row means correspond to the SATE for each MCMC iteration
+mndiffs1=apply(diffs1,1,mean)
+length(mndiffs1) #A vector of 1000 simulations of the SATE
+ATT_bart1 = mean(mndiffs1) # Posterior mean SATE
+ATT_bart1
+
+sdATT_bart1 = sd(mndiffs1) # Posterior standard deviation of the SATE
+sdATT_bart1
+```
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#' Fit a linear regression model that includes all the covariates as linear terms
+glm.mod1 <- stan_glm(Y ~ Z + X1 + X2 +X1:X2 + Z:X1, data = bs3 , refresh=FALSE)
+#' The coefficient corresponding to the treatment variable estimates the ATE
+bglm.ATE_1 = glm.mod1$coefficients["Z"]
+bglm.sdATE_1 = glm.mod1$ses["Z"]
+bglm.ATE_1
+bglm.sdATE_1
+```
+
+```{r}
+#bglm.ATE_1 = glm.mod1$coefficients["Z"]
+#bglm.sdATE_1 = glm.mod1$ses["Z"]
+#bglm.ATE_1
+#bglm.sdATE_1
+glm.mod1
+```
+
+
+
+```{r}
+#' Now estimate the ATT using posterior predictions for each treated observation
+#' under the case where a=0
+bpreddat = bs3
+bpreddat$Z=0
+
+#' Obtain posterior predictions for every unit under the case where a=0
+bypred1 = posterior_predict(glm.mod1, newdata=bpreddat)
+#' Calculate a matrix of estimates of the ATT by subtracting the observed outcome
+#' for treated units from the posterior predictions under a=0 for treated units
+bATTmat = bs3$Y[bs3$Z==1] - bypred1[, bs3$Z==1] # a 4000 x 218 matrix for the 218 treated units
+bATT_1 = mean(rowMeans(bATTmat))
+bsdATT_1 = sd(rowMeans(bATTmat))
+bATT_1
+bsdATT_1
+```
+```{r}
+ATT_bart1
+bATT_1
+```
+```{r}
+ATT_bart1 -bATT_1
+
+```
+```{r}
+###############################################################################
+
+
+#' Now look at the Individual Treatment Effects, (ITEs), noting that estimation may have
+#' wide uncertainty with this sample size
+#' 
+#' The posterior ITEs are the columns of the 1000x218 matrix 'diffs'
+ite_means1<- apply(diffs1, 2, mean)
+ite_sds1<- apply(diffs1, 2, sd)
+ite_ql1 = apply(diffs1, 2, quantile, .025)
+ite_qu1 = apply(diffs1, 2, quantile, .975)
+
+#' Just get a sense of the treatment effect heterogeneity by looking at a histogram
+#' of the posterior mean ITEs across the sample
+hist(ite_means1, breaks=100)
+covariates1 <- c("X1","X2")
+
+#' Now plot the ITEs (posterior means and 95% intervals) across the values of a covariate
+#' Do this for every covariate just for illustration
+for (cov in covariates1){
+  covplot = bs3[, cov]
+  plot(covplot[bs3$Z==1], ite_means1, pch=16, cex=0.75, col="red", ylim = c(-3,3), 
+       main = paste("ITEs as a funciton of:", cov), xlab = cov, ylab = "ITE")
+  arrows(covplot[bs3$Z==1], ite_ql1, covplot[bs3$Z==1], ite_qu1, col = rgb(0.5,0,0, alpha=0.5), angle=90, length=0.01, lwd=0.5)
+}
+
+###############################################################################
+```
+```{r}
+#' Now look at the Individual Treatment Effects, (ITEs), noting that estimation may have
+#' wide uncertainty with this sample size
+#' 
+#' The posterior ITEs are the columns of the 1000x218 matrix 'diffs'
+##ite_means1<- apply(diffs1, 2, mean)
+##ite_sds1<- apply(diffs1, 2, sd)
+ite_ql1 = apply(diffs1, 2, quantile, .025)
+ite_qu1 = apply(diffs1, 2, quantile, .975)
+
+#' Just get a sense of the treatment effect heterogeneity by looking at a histogram
+#' of the posterior mean ITEs across the sample
+
+  covplot = bs3[, cov]
+  plot(covplot[bs3$Z==1], ite_means1, pch=16, cex=0.75, col="red", ylim = c(-3,3), 
+       main = paste("ITEs as a funciton of:", cov), xlab = cov, ylab = "ITE")
+  arrows(covplot[bs3$Z==1], ite_ql1, covplot[bs3$Z==1], ite_qu1, col = rgb(0.5,0,0, alpha=0.5), angle=90, length=0.01, lwd=0.5)
+
+```
+
+
+
+
+```{r}
+#diffs1=bart.mod$yhat.train[,bs3$Z==1]-bart.mod$yhat.test 
+tertile_df <- data.frame(X2 =  bs3[bs3$Z==1,]$X2, ITE_MEANS = ite_means1)
+#tertile_df$X2 <- bs3[bs3$Z==1,]$X2 
+#tertile_df$ITE_MEANS <-  ite_means1
+colnames(tertile_df)
+#names(tertile_df)[1] <- "X2"
+#names(tertile_df)[2] <- "ITE_MEANS"
+
+tertile_df
+
+```
+
+
+```{r}
+# Find tertiles
+vTert = quantile(tertile_df$X2, c(0:3/3))
+
+# classify values
+tertile_df$tert = with(tertile_df, 
+               cut(X2, 
+                   vTert, 
+                   include.lowest = T, 
+                   labels = c("Low", "Medium", "High")))
+tertile_df
+```
+```{r}
+ATT_LOW <- mean (tertile_df[tertile_df$tert=="Low",]$ITE_MEANS)
+ATT_LOW
+ATT_MED <- mean (tertile_df[tertile_df$tert=="Medium",]$ITE_MEANS)
+ATT_MED
+ATT_HIGH <- mean (tertile_df[tertile_df$tert=="High",]$ITE_MEANS)
+ATT_HIGH
+```
+
